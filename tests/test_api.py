@@ -3,10 +3,12 @@ import requests
 from unittest.mock import patch, MagicMock
 from src.api import TreasuryAPI
 
+
 @pytest.fixture
 def api_client():
     """Fixture to create an instance of the TreasuryAPI."""
     return TreasuryAPI()
+
 
 @pytest.fixture
 def mock_api_response():
@@ -28,6 +30,7 @@ def mock_api_response():
         ],
         "meta": {"count": 2, "total-pages": 1}
     }
+
 
 @patch('src.api.requests.get')
 def test_fetch_rates_success(mock_get, api_client, mock_api_response):
@@ -63,6 +66,7 @@ def test_fetch_rates_success(mock_get, api_client, mock_api_response):
     assert rates[1]["security_desc"] == "Treasury Notes"
     assert rates[1]["rate"] == "3.112%"
 
+
 @patch('src.api.requests.get')
 def test_fetch_rates_http_error(mock_get, api_client):
     """
@@ -72,8 +76,10 @@ def test_fetch_rates_http_error(mock_get, api_client):
     mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
 
     # Use pytest.raises to assert that the specific exception is raised
-    with pytest.raises(requests.exceptions.RequestException, match="API request failed"):
+    with pytest.raises(requests.exceptions.RequestException,
+                       match="API request failed"):
         api_client.fetch_rates_by_date("2023-09-30")
+
 
 @patch('src.api.requests.get')
 def test_fetch_rates_no_data_found(mock_get, api_client):
@@ -91,6 +97,7 @@ def test_fetch_rates_no_data_found(mock_get, api_client):
     # Assert an empty list is returned
     assert rates == []
 
+
 @patch('src.api.requests.get')
 def test_fetch_rates_json_decode_error(mock_get, api_client):
     """
@@ -99,9 +106,12 @@ def test_fetch_rates_json_decode_error(mock_get, api_client):
     # Configure the mock to raise a JSONDecodeError
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.side_effect = requests.exceptions.JSONDecodeError("msg", "doc", 0)
+    mock_response.json.side_effect = requests.exceptions.JSONDecodeError(
+        "msg", "doc", 0
+        )
     mock_get.return_value = mock_response
 
     # Assert that our custom ValueError is raised
-    with pytest.raises(ValueError, match="Failed to decode JSON from response."):
+    with pytest.raises(ValueError,
+                       match="Failed to decode JSON from response."):
         api_client.fetch_rates_by_date("2023-09-30")

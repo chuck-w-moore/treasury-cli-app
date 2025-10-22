@@ -1,11 +1,13 @@
 import requests
 from typing import List, Dict, Any
 
+
 class TreasuryAPI:
     """
     A class to interact with the U.S. Treasury FiscalData API.
     """
-    BASE_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service"
+    BASE_URL = ("https://api.fiscaldata.treasury.gov/services/api/"
+                "fiscal_service")
     ENDPOINT = "/v2/accounting/od/avg_interest_rates"
 
     def fetch_rates_by_date(self, report_date: str) -> List[Dict[str, Any]]:
@@ -13,11 +15,13 @@ class TreasuryAPI:
         Fetches all average interest rates for a specific date.
 
         Args:
-            report_date (str): The date to fetch data for, in 'YYYY-MM-DD' format.
+            report_date (str): The date to fetch data for,
+                               in 'YYYY-MM-DD' format.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries, where each dictionary
-                                  represents a security and its rate, including the security type.
+            List[Dict[str, Any]]: A list of dictionaries, where each
+                                  dictionary represents a security and its
+                                  rate, including the security type.
 
         Raises:
             requests.exceptions.RequestException: For network or HTTP errors.
@@ -31,11 +35,12 @@ class TreasuryAPI:
 
         try:
             response = requests.get(url, params=params)
-            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+            # Raises an HTTPError for bad responses (4xx or 5xx)
+            response.raise_for_status()
 
             data = response.json()
             if not data.get("data"):
-                return [] # Return empty list if no data for that date
+                return []  # Return empty list if no data for that date
 
             # Clean and format the data, now including security_type_desc
             formatted_data = [
@@ -53,4 +58,6 @@ class TreasuryAPI:
             raise ValueError("Failed to decode JSON from response.")
         except requests.exceptions.RequestException as e:
             # Re-raise with a more informative message
-            raise requests.exceptions.RequestException(f"API request failed: {e}")
+            raise requests.exceptions.RequestException(
+                f"API request failed: {e}"
+                )

@@ -1,6 +1,6 @@
 # Treasury Rate Finder CLI
 
-[![Python CI](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/tests.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions)
+[![Python CI](https://github.com/chuck-w-moore/treasury-cli-app/actions/workflows/tests.yml/badge.svg)](https://github.com/chuck-w-moore/treasury-cli-app/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

@@ -15,7 +15,7 @@ This tool provides an interactive interface to query the U.S. Department of the 
 * **Interactive Menu:** A user-friendly, loop-based interface.
 * **Flexible Date Selection:**
     * Query specific months (up to 5).
-    * Query a date range (e.g., 2022-01 to 2023-06).
+    * Query a date range (e.g., 2022-11 to 2023-06).
 * **Security Comparison:** Select one or two securities from a three-level menu (Type -> Description) to compare rates side-by-side.
 * **Built-in Validation:** Smart prompts prevent invalid dates and duplicate security selections.
 * **Formatted Output:** All results are printed in a clean, easy-to-read `tabulate` table.

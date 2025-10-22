@@ -1,4 +1,4 @@
-# Project Name: Federal Reserve Treasury Bond Rates CLI
+# Federal Reserve Treasury Bond Rates CLI
 
 ## Project Overview
 
@@ -33,6 +33,15 @@ Command-line application using `argparse` to fetch and showcase historical U.S. 
     -   Optionally allows a second security for comparison (`--security2`).
 -   `list-securities`
     -   Displays all available security types and their descriptions.
+
+## AI-Assisted Development Process
+AI assistance (Gemini & Copilot) was utilized for:
+-   Initial project scaffolding and structure suggestions.
+-   Generating boilerplate code for API calls and argparse setup.
+-   Writing unit tests, particularly implementing mocking for API calls.
+-   Generating docstrings and documentation (README, AGENTS.md).
+-   Refactoring code (e.g., switching from interactive input to argparse).
+-   Debugging errors (e.g., ModuleNotFoundErrors, argparse issues).
 
 ## Technical Stack
 

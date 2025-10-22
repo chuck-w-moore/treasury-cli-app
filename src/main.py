@@ -1,8 +1,6 @@
 import sys
-import argparse
+import re
 import calendar
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from tabulate import tabulate
 from .api import TreasuryAPI
 
@@ -28,283 +26,270 @@ SECURITY_MAP = {
 }
 
 
-# --- Helper Functions ---
-
 def get_last_day_of_month(year: int, month: int) -> str:
     """Returns the last day of a given month in YYYY-MM-DD format."""
     last_day = calendar.monthrange(year, month)[1]
     return f"{year}-{month:02d}-{last_day:02d}"
 
 
-def validate_date_format(date_str: str, fmt: str = "%Y-%m-%d") -> bool:
-    """Validates if a string matches the YYYY-MM-DD format."""
-    try:
-        datetime.strptime(date_str, fmt)
-        return True
-    except ValueError:
-        return False
+def prompt_for_dates() -> list[str] | None:
+    """Guides the user to select either specific dates or a date range."""
+    while True:
+        print("\n--- Date Selection ---")
+        print("How would you like to select dates?")
+        print("  1. Specific Months (up to 5)")
+        print("  2. A Date Range")
+        choice = input("Your choice (1-2): ")
 
+        if choice == '1':
+            # Specific Dates Logic
+            dates = []
+            print("\nEnter up to 5 dates chronologically (earliest to latest).")
+            print("Note: For year 2020, months are 10-12. For 2025, months are 01-09.")
+            while len(dates) < 5:
+                try:
+                    year_str = input(
+                        f"Enter Year #{len(dates) + 1} (YYYY), or press Enter to finish: "
+                        )
+                    if not year_str:
+                        break
+                    year = int(year_str)
 
-def validate_year_month_format(date_str: str) -> bool:
-    """Validates if a string matches the YYYY-MM format."""
-    # Append day for validation
-    return validate_date_format(date_str + "-01", "%Y-%m-%d")
+                    month_str = input(f"Enter Month #{len(dates) + 1} (MM): ")
+                    month = int(month_str)
 
+                    # Updated validation logic
+                    if not (2020 <= year <= 2025):
+                        print("Invalid input. Year must be between 2020 and 2025.")
+                        continue
+                    if year == 2020 and month < 10:
+                        print("Invalid input. For 2020, earliest month is 10.")
+                        continue
+                    if year == 2025 and month > 9:
+                        print("Invalid input. For 2025, latest month is 9.")
+                        continue
+                    if not (1 <= month <= 12):
+                        print("Invalid input. Month must be between 01 and 12.")
+                        continue
 
-def get_all_security_descriptions() -> set:
-    """Returns a set of all valid security descriptions."""
-    all_descs = set()
-    for descs in SECURITY_MAP.values():
-        all_descs.update(descs)
-    return all_descs
+                    new_date = get_last_day_of_month(year, month)
+                    if dates and new_date < dates[-1]:
+                        print("Error: Dates must be in chronological order.")
+                        # Let user retry entering the current date
+                        continue
 
+                    dates.append(new_date)
 
-VALID_DESCRIPTIONS = get_all_security_descriptions()
+                except ValueError:
+                    print("Invalid input. Please enter numbers for year/month.")
+            # Ensure unique and sorted before returning
+            return sorted(list(set(dates)))
 
+        elif choice == '2':
+            # Date Range Logic
+            while True:  # Loop for date range input validation
+                try:
+                    print("\nEnter Start Date (Note: Range is 2020-10 to 2025-09):")
+                    start_year = int(input("  Start Year (YYYY): "))
+                    start_month = int(input("  Start Month (MM): "))
 
-def validate_security_description(desc: str) -> str:
-    """Checks validity of security description (case-insensitive)."""
-    # Find the correctly cased description
-    for valid_desc in VALID_DESCRIPTIONS:
-        if desc.lower() == valid_desc.lower():
-            return valid_desc  # Return the correctly cased version
-    # If no match found, raise an error for argparse
-    raise argparse.ArgumentTypeError(
-        f"Invalid security description: '{desc}'. "
-        f"Use the 'list-securities' command to see valid options."
-    )
+                    print("Enter End Date:")
+                    end_year = int(input("  End Year (YYYY): "))
+                    end_month = int(input("  End Month (MM): "))
 
+                    # More robust validation
+                    valid_start = (2020 <= start_year <= 2025 and
+                                   1 <= start_month <= 12)
+                    valid_end = (2020 <= end_year <= 2025 and
+                                 1 <= end_month <= 12)
 
-def find_security_type(description: str) -> str:
-    """Finds the security type category for a given description."""
-    for sec_type, descs in SECURITY_MAP.items():
-        if description in descs:
-            return sec_type
-    return "Unknown"  # Should not happen if validation passes
+                    if not (valid_start and valid_end):
+                        print("Invalid input. Ensure years 2020-2025, months 01-12.")
+                        continue
 
+                    if (end_year, end_month) < (start_year, start_month):
+                        print("Error: End date cannot be before start date.")
+                        continue
 
-# --- Argparse Setup ---
+                    # Check against overall allowed range
+                    if (start_year == 2020 and start_month < 10) or start_year < 2020:
+                         print("Error: Start date out of allowed range (min 2020-10).")
+                         continue
+                    if (end_year == 2025 and end_month > 9) or end_year > 2025:
+                         print("Error: End date out of allowed range (max 2025-09).")
+                         continue
 
-def setup_parser() -> argparse.ArgumentParser:
-    """Sets up the argument parser for the CLI."""
-    parser = argparse.ArgumentParser(
-        description="Fetch U.S. Treasury security rates from FiscalData API.",
-        epilog="Use '<command> --help' for info on a specific command."
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True,
-                                       help="Available commands")
+                    dates = []
+                    for year in range(start_year, end_year + 1):
+                        s_month = start_month if year == start_year else 1
+                        e_month = end_month if year == end_year else 12
+                        for month in range(s_month, e_month + 1):
+                            # Ensure generated dates are within the hard limits
+                            if year == 2020 and month < 10: continue
+                            if year == 2025 and month > 9: continue
+                            dates.append(get_last_day_of_month(year, month))
+                    return dates # Return dates if validation passes
+                except ValueError:
+                    print("Invalid input. Please enter numbers for year/month.")
+                    # Loop will repeat the date range questions
 
-    # --- Command: lookup ---
-    lookup_parser = subparsers.add_parser(
-        "lookup", help="Look up rates for specific dates (up to 5)."
-    )
-    lookup_parser.add_argument(
-        "--dates",
-        required=True,
-        nargs='+',  # Accepts one or more arguments
-        help="One or more dates in YYYY-MM-DD format (e.g., 2023-09-30)."
-    )
-    lookup_parser.add_argument(
-        "--security1",
-        required=True,
-        type=validate_security_description,
-        help="Primary security description (e.g., 'Treasury Bills')."
-    )
-    lookup_parser.add_argument(
-        "--security2",
-        type=validate_security_description,
-        help="(Optional) Second security description for comparison."
-    )
-
-    # --- Command: range ---
-    range_parser = subparsers.add_parser(
-        "range", help="Look up rates over a date range (inclusive)."
-    )
-    range_parser.add_argument(
-        "--start-date",
-        required=True,
-        type=str,
-        help="Start date in YYYY-MM format (e.g., 2022-10)."
-    )
-    range_parser.add_argument(
-        "--end-date",
-        required=True,
-        type=str,
-        help="End date in YYYY-MM format (e.g., 2023-09)."
-    )
-    range_parser.add_argument(
-        "--security1",
-        required=True,
-        type=validate_security_description,
-        help="Primary security description (e.g., 'Treasury Notes')."
-    )
-    range_parser.add_argument(
-        "--security2",
-        type=validate_security_description,
-        help="(Optional) Second security description for comparison."
-    )
-
-    # --- Command: list-securities ---
-    subparsers.add_parser(
-        "list-securities",
-        help="List all available security types and descriptions."
-    )
-
-    return parser
-
-
-# --- Command Handlers ---
-
-def handle_list_securities():
-    """Prints the available security types and descriptions."""
-    print("\nAvailable Treasury Securities:")
-    print("-" * 30)
-    for sec_type, descriptions in SECURITY_MAP.items():
-        print(f"\nType: {sec_type}")
-        for desc in descriptions:
-            # Add quotes for clarity in usage
-            print(f"  - \"{desc}\"")
-    print("\nUse the exact description (incl. quotes if needed) with commands.")
-
-
-def fetch_and_display_rates(
-        api: TreasuryAPI,
-        dates_to_query: list[str],
-        securities_to_find: list[str]
-        ):
-    """Fetches data for given dates/securities and prints the table."""
-    print("\nFetching data, please wait...")
-    all_results = []
-    securities_set = set(securities_to_find)  # For efficient lookup
-
-    for date in dates_to_query:
-        try:
-            rates_on_date = api.fetch_rates_by_date(date)
-            for rate_data in rates_on_date:
-                if rate_data["security_desc"] in securities_set:
-                    all_results.append({
-                        "Record Date": rate_data["record_date"],
-                        "Security Type": find_security_type(
-                            rate_data["security_desc"]
-                            ),
-                        "Security Description": rate_data["security_desc"],
-                        "Rate": rate_data["rate"]
-                    })
-        except Exception as e:
-            print(f"Warning: Could not fetch data for {date}: {e}",
-                  file=sys.stderr)
-
-    if all_results:
-        # Sort results by date then description for consistent output
-        all_results.sort(key=lambda x: (x["Record Date"],
-                                        x["Security Description"]))
-        print("\n--- Results ---")
-        print(tabulate(all_results, headers="keys", tablefmt="grid"))
-    else:
-        print("\nNo matching data found for the selected criteria.")
-
-
-def handle_lookup(api: TreasuryAPI, args: argparse.Namespace):
-    """Handles the 'lookup' command logic."""
-    if len(args.dates) > 5:
-        print("Error: Maximum of 5 dates allowed for lookup.", file=sys.stderr)
-        sys.exit(1)
-
-    valid_dates = []
-    for date_str in args.dates:
-        if not validate_date_format(date_str):
-            print(f"Error: Invalid date format '{date_str}'. Use YYYY-MM-DD.",
-                  file=sys.stderr)
-            sys.exit(1)
-        valid_dates.append(date_str)
-
-    securities = [args.security1]
-    if args.security2:
-        if args.security1 == args.security2:
-            print("Error: Security 1 and Security 2 cannot be the same.",
-                  file=sys.stderr)
-            sys.exit(1)
-        securities.append(args.security2)
-
-    fetch_and_display_rates(api, sorted(list(set(valid_dates))), securities)
-
-
-def handle_range(api: TreasuryAPI, args: argparse.Namespace):
-    """Handles the 'range' command logic."""
-    if (not validate_year_month_format(args.start_date) or
-            not validate_year_month_format(args.end_date)):
-        print("Error: Invalid date format. Use YYYY-MM.", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        start = datetime.strptime(args.start_date, "%Y-%m")
-        end = datetime.strptime(args.end_date, "%Y-%m")
-    except ValueError:
-        print("Error: Could not parse dates. Use YYYY-MM format.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    if start > end:
-        print("Error: Start date cannot be after end date.", file=sys.stderr)
-        sys.exit(1)
-
-    dates_in_range = []
-    current_date = start
-    while current_date <= end:
-        year = current_date.year
-        month = current_date.month
-        # Add validation for allowed date range (2020-10 to 2025-09)
-        if not ((year == 2020 and month >= 10) or
-                (2020 < year < 2025) or
-                (year == 2025 and month <= 9)):
-            print(
-                f"Warning: Skipping {year}-{month:02d} - outside allowed "
-                "range (2020-10 to 2025-09).", file=sys.stderr
-                )
         else:
-            dates_in_range.append(get_last_day_of_month(year, month))
-
-        # Move to the next month
-        current_date += relativedelta(months=1)
-
-    if not dates_in_range:
-        print(
-            "Error: No valid dates found within the specified range and "
-            "allowed period (2020-10 to 2025-09).", file=sys.stderr
-            )
-        sys.exit(1)
-
-    securities = [args.security1]
-    if args.security2:
-        if args.security1 == args.security2:
-            print("Error: Security 1 and Security 2 cannot be the same.",
-                  file=sys.stderr)
-            sys.exit(1)
-        securities.append(args.security2)
-
-    fetch_and_display_rates(api, dates_in_range, securities)
+            print("Invalid choice. Please enter 1 or 2.")
+            # Loop will repeat the date selection menu
 
 
-# --- Main Execution ---
+def prompt_for_security(existing_security: dict | None = None) -> dict:
+    """Guides the user to select a security, ensuring it's not a duplicate."""
+    print("\n--- Security Selection ---")
 
-def main():
-    """Main function to parse arguments and execute the correct command."""
-    parser = setup_parser()
-    args = parser.parse_args()
+    # Prompt for Security Type
+    while True:
+        print("Select a Security Type:")
+        type_keys = list(SECURITY_MAP.keys())
+        for i, key in enumerate(type_keys):
+            print(f"  {i+1}. {key}")
 
+        try:
+            type_choice_str = input(f"Your choice (1-{len(type_keys)}): ")
+            type_choice = int(type_choice_str) - 1
+            if 0 <= type_choice < len(type_keys):
+                selected_type = type_keys[type_choice]
+                break  # Valid type selected
+            else:
+                print("Invalid choice. Please select a number from the list.")
+        except (ValueError, IndexError):
+            print("Invalid input. Please enter a valid number.")
+
+    # Prompt for Security Description
+    while True:
+        print("\nSelect a Security Description:")
+        descriptions = SECURITY_MAP[selected_type]
+        for i, desc in enumerate(descriptions):
+            print(f"  {i+1}. {desc}")
+
+        try:
+            desc_choice_str = input(f"Your choice (1-{len(descriptions)}): ")
+            desc_choice = int(desc_choice_str) - 1
+            if 0 <= desc_choice < len(descriptions):
+                selected_desc = descriptions[desc_choice]
+
+                # Validation against existing selection
+                new_security = {"type": selected_type, "desc": selected_desc}
+                if existing_security and new_security == existing_security:
+                    print("\nError: Already selected. Choose different security.")
+                    continue  # Re-ask for the description
+
+                return new_security  # Choice is valid and not a duplicate
+            else:
+                print("Invalid choice. Please select a number from the list.")
+
+        except (ValueError, IndexError):
+            print("Invalid input. Please enter a valid number.")
+
+
+def run_interactive_cli():
+    """Main function to run the interactive command-line interface."""
     api = TreasuryAPI()
+    print("=" * 50)
+    print("      Welcome to the Treasury Rate Finder CLI")
+    print("=" * 50)
 
-    try:
-        if args.command == "lookup":
-            handle_lookup(api, args)
-        elif args.command == "range":
-            handle_range(api, args)
-        elif args.command == "list-securities":
-            handle_list_securities()
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+    while True:
+        # --- Main Menu ---
+        print("\nPlease select an option from the menu below:")
+        print("\n  1. Research and compare Treasury securities")
+        print("  2. Exit application")
+        choice = input("\nYour choice: ")
+
+        if choice == '1':
+            # 1. Get Dates
+            dates_to_query = prompt_for_dates()
+            # If prompt_for_dates returns None due to error, loop back
+            if dates_to_query is None:
+                 input("\nDate entry error. Returning to main menu...")
+                 continue
+            if not dates_to_query: # Handle case where user finishes early
+                 input("\nNo dates selected. Returning to main menu...")
+                 continue
+
+            # 2. Get Securities
+            securities_to_find = []
+            first_security = prompt_for_security()
+            securities_to_find.append(first_security)
+
+            while True: # Loop for compare choice validation
+                compare = input("\nCompare another security? (y/n): ").lower()
+                if compare in ['y', 'n']:
+                    break
+                else:
+                    print("Invalid input. Please enter 'y' or 'n'.")
+
+            if compare == 'y':
+                # Pass first security to check for duplicates
+                second_security = prompt_for_security(
+                    existing_security=first_security
+                    )
+                securities_to_find.append(second_security)
+
+            # 3. Fetch Data and Display Results
+            print("\nFetching data, please wait...")
+            all_results = []
+            fetch_errors = False
+            for date in dates_to_query:
+                try:
+                    rates_on_date = api.fetch_rates_by_date(date)
+                    if not rates_on_date:
+                        print(f"Info: No data found for {date}.",
+                              file=sys.stderr)
+                        continue # Skip date if API returns empty
+
+                    for sec in securities_to_find:
+                        found_on_date = False
+                        for rate_data in rates_on_date:
+                            if rate_data["security_desc"] == sec["desc"]:
+                                all_results.append({
+                                    "Record Date": rate_data["record_date"],
+                                    "Security Type": sec["type"], # Use stored type
+                                    "Security Description": rate_data["security_desc"],
+                                    "Rate": rate_data["rate"]
+                                })
+                                found_on_date = True
+                                break # Found match for this security on this date
+                        # if not found_on_date:
+                        #     print(f"Info: No rate found for '{sec['desc']}' on {date}.", file=sys.stderr)
+
+                except Exception as e:
+                    print(f"Error fetching data for {date}: {e}",
+                          file=sys.stderr)
+                    fetch_errors = True
+
+            if all_results:
+                # Sort results by date then description
+                all_results.sort(key=lambda x: (x["Record Date"],
+                                                x["Security Description"]))
+                print("\n--- Results ---")
+                print(tabulate(all_results, headers="keys", tablefmt="grid"))
+            elif not fetch_errors:
+                 print("\nNo matching data found for selected criteria and dates.")
+
+            input("\nPress Enter to return to the main menu...")
+
+        elif choice == '2':
+            print("\nThank you for using the Treasury Rate Finder. Goodbye!")
+            break # Exit the main loop
+
+        else:
+            print("\nInvalid choice. Please enter 1 or 2.")
+            input("Press Enter to continue...")
 
 
 if __name__ == "__main__":
-    main()
+    # Directly run the interactive CLI when the script is executed
+    try:
+        run_interactive_cli()
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user. Exiting.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
